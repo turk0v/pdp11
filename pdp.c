@@ -1,67 +1,76 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 typedef unsigned char byte;
 typedef int word;
-typedef int adr;
+typedef word adr;
 
 byte mem[56*1024];
+word reg[8];
 
 #define LO(x) (x & 0xFF);
 #define HI(x) (((x>>8) & 0xFF));
+
+#define RELEASE 0
+#define DEBUG 1
+#define FULL_DEBUG 2
+
+int debug_level = DEBUG;
+#define sp reg[6]
+#define pc reg[7]
+
+
+#define NO_PARAM	0
+#define HAS_SS		1
+#define HAS_DD		2
+#define HAS_NN		4
+#define HAS_XX		8
+
 
 byte b_read  (adr a);
 void b_write (adr a, byte val);
 word w_read  (adr a);
 void w_write (adr a, word val);
 void mem_dump(adr start, word n);
-void load_file(char* filename );
-void test();
-// void do_mov();
-// void do_add();
-// void do_halt();
-// void do_unknown();
+void load_file();
+void test_mem();
+void do_mov();
+void do_add();
+void do_halt();
+void do_unknown();
+void print_reg();
+void trace(int dbg_lvl, char * format, ...);
 
-// struct Command 
-// {
-// 	word opcode;
-// 	word mask;
-// 	const char * name;
-// 	void (*do_func)();
-// } command [] = {
-// 	{0010000,0170000, "mov", do_mov},
-// 	{0060000,0170000, "add", do_add},
-// 	{0000000,0177777, "halt", do_halt},
-// 	{0000000,0170000, "unknown", do_unknown}
-// };
 
-byte b_read  (adr a)
-{
-    return mem[a];
-}
 
+struct Command {
+	word opcode;
+	word mask;
+	const char * name;
+	void (*do_func)();
+			
+}	command[] = {
+	{0010000, 0170000, "mov",		do_mov},
+	{0060000, 0170000, "add",		do_add},	
+	{0000000, 0177777, "halt",		do_halt},
+	{0000000, 0170000, "unknown", 	do_unknown}	
+};
+
+
+
+//запись/чтение из памяти 
 void b_write (adr a, byte val)
 {
     mem[a] = val;
 }
 
-// void do_mov()
-// {
-// 	exit(0);
-// }
-// void do_add()
-// {
-// 	exit(0);
-// }
-// void do_halt()
-// {
-// 	exit(0);
-// }
-// void do_unknown()
-// {
-// 	exit(0);
-// }
+
+byte b_read  (adr a)
+{
+    return mem[a];
+}
 
 word w_read  (adr a)
 {
@@ -76,34 +85,93 @@ void w_write (adr a, word val)
     mem[a] = LO(val);
     mem[a+1] = HI(val);
 }
+
+
+
+
+//печать регистра
+void print_reg() 
+{
+	int i;
+	for (i = 0; i < 8; ++i) {
+		printf("r%d : %.6o\n", i, reg[i]);
+	}
+}
+
+
+
+
+
+void do_mov()
+{
+
+}
+void do_add()
+{
+	exit(0);
+}
+void do_halt()
+{
+	print_reg();
+	printf("finished\n");
+	exit(0);
+}
+void do_unknown()
+{
+	exit(0);
+}
+
+
+
+
+//память-функции
+
 void mem_dump(adr start, word n)
 {
     for (int i = 0; i < n; i = i +2)
         printf("%.6o : %.6o \n", start + i, w_read(start + i)&0xFFFF);
 }
 
-void load_file(char* filename ) {
-    unsigned int n, a, i, x;
-    FILE *file;
-    file = fopen(filename,"r");
-    if (file == NULL) {
-        perror(filename);
-        fclose (file);
-        exit(0);
-    }
-    while (1) {
-        if(fscanf(file,"%x", &a) != 1)
-            break;
-        fscanf(file, "%x", &n);
-        for (i = 0; i < n; i++) {
-            fscanf(file, "%x", &x);
-            b_write((adr)(a+i), x);
-        }
-    }
-    fclose (file);
+void load_file() {
+	FILE *f_in = NULL;
+	//f_in = fopen("in.txt", "r");
+	f_in = stdin;
+	if (f_in == NULL) {
+		perror("in.txt");  // печатаем ошибку открытия файла на чтение, быть может его нет; или файл есть, а у вас нет прав на чтение файла
+		exit(1);          // даже если тесты проверяющей системой не показаны, код возврата в тесте показан всегда
+	}
+	unsigned int adr, n;
+	int i;
+	//int c = 0;
+	while(1) {
+		if (2 != fscanf (f_in, "%x%x", &adr, &n))
+			return;
+		for (i = 0; i < n; ++i) {
+			unsigned int x;
+			fscanf (f_in, "%x", &x);
+			b_write(adr + i, (byte)x);
+		}	
+	}
+
+	fclose (f_in);
 }
 
-void test() 
+
+
+void trace(int dbg_lvl, char * format, ...) {
+	if (dbg_lvl != debug_level)
+		return;
+	va_list ap;
+	va_start (ap, format);
+	vprintf(format, ap);
+	va_end(ap);	
+}
+
+
+
+
+
+void test_mem() 
 {
 	byte b0, b1;
 	word w;
@@ -113,13 +181,10 @@ void test()
 	b1 = b_read(3);
 	printf ("%04x = %02hhx%02hhx\n", w , b1 , b0);
 }
+
 int main()
 {
-	byte a = 0xa1;
-	byte b = 0xb2;
-	b_write(2,a);
-	b_write(3,b);
-	printf("%x\n", mem[2]);
-	printf("%x\n", mem[3]);
+	load_file();
+	mem_dump(0x200, 0xc)
 	return 0;
 }

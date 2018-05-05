@@ -132,28 +132,27 @@ void mem_dump(adr start, word n)
         printf("%.6o : %.6o \n", start + i, w_read(start + i)&0xFFFF);
 }
 
-void load_file() {
+void load_file(char * s) {
 	FILE *f_in = NULL;
-	//f_in = fopen("in.txt", "r");
-	f_in = stdin;
-	if (f_in == NULL) {
-		perror("in.txt");  // печатаем ошибку открытия файла на чтение, быть может его нет; или файл есть, а у вас нет прав на чтение файла
-		exit(1);          // даже если тесты проверяющей системой не показаны, код возврата в тесте показан всегда
+	f_in = fopen(s,"r");
+	if (f_in == NULL)
+	{
+		perror(s);
+		exit(1);
 	}
-	unsigned int adr, n;
-	int i;
-	//int c = 0;
-	while(1) {
-		if (2 != fscanf (f_in, "%x%x", &adr, &n))
-			return;
-		for (i = 0; i < n; ++i) {
-			unsigned int x;
-			fscanf (f_in, "%x", &x);
-			b_write(adr + i, (byte)x);
-		}	
+	int ad , i , n , *a;
+	while (fscanf(f_in,"%x", &ad)> 0)
+	{
+		fscanf(f_in, "%x" , &n);
+		a = malloc(n * sizeof(int));
+		for(i = 0 ; i < n ;i++ )
+		{
+			fscanf(f_in, "%x", &a[i]);
+			b_write(ad + i, a[i]);
+		}
 	}
-
-	fclose (f_in);
+	free(a);
+	fclose(f_in);
 }
 
 
@@ -185,6 +184,6 @@ void test_mem()
 int main()
 {
 	load_file();
-	mem_dump(0x200, 0xc)
+	mem_dump(0x200, 0xc);
 	return 0;
 }

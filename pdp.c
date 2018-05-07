@@ -34,29 +34,24 @@ void b_write (adr a, byte val);
 word w_read  (adr a);
 void w_write (adr a, word val);
 void mem_dump(adr start, word n);
-void load_file();
+void load_file(char * s);
 void test_mem();
-void do_mov();
-void do_add();
-void do_halt();
-void do_unknown();
 void print_reg();
-void trace(int dbg_lvl, char * format, ...);
 
 
 
-struct Command {
-	word opcode;
-	word mask;
-	const char * name;
-	void (*do_func)();
+// struct Command {
+// 	word opcode;
+// 	word mask;
+// 	const char * name;
+// 	void (*do_func)();
 			
-}	command[] = {
-	{0010000, 0170000, "mov",		do_mov},
-	{0060000, 0170000, "add",		do_add},	
-	{0000000, 0177777, "halt",		do_halt},
-	{0000000, 0170000, "unknown", 	do_unknown}	
-};
+// }	command[] = {
+// 	{0010000, 0170000, "mov",		do_mov},
+// 	{0060000, 0170000, "add",		do_add},	
+// 	{0000000, 0177777, "halt",		do_halt},
+// 	{0000000, 0170000, "unknown", 	do_unknown}	
+// };
 
 
 
@@ -90,12 +85,13 @@ void w_write (adr a, word val)
 
 
 //печать регистра
-void print_reg() 
-{
+void print_reg() {
+	printf("\n");
 	int i;
-	for (i = 0; i < 8; ++i) {
-		printf("r%d : %.6o\n", i, reg[i]);
+	for (i = 0; i < 8; i++) {
+		printf("R%d:%06o ", i, reg[i]);
 	}
+	printf("\n");
 }
 
 
@@ -112,8 +108,9 @@ void do_add()
 }
 void do_halt()
 {
+	printf("\n");
 	print_reg();
-	printf("finished\n");
+	printf("THE END\n");
 	exit(0);
 }
 void do_unknown()
@@ -126,11 +123,6 @@ void do_unknown()
 
 //память-функции
 
-void mem_dump(adr start, word n)
-{
-    for (int i = 0; i < n; i = i +2)
-        printf("%.6o : %.6o \n", start + i, w_read(start + i)&0xFFFF);
-}
 
 void load_file(char * s) {
 	FILE *f_in = NULL;
@@ -160,13 +152,20 @@ void load_file(char * s) {
 void trace(int dbg_lvl, char * format, ...) {
 	if (dbg_lvl != debug_level)
 		return;
-	va_list ap;
-	va_start (ap, format);
-	vprintf(format, ap);
-	va_end(ap);	
+	va_list argptr;
+	va_start (argptr, format);
+	vprintf(format, argptr);
+	va_end(argptr);	
 }
 
 
+
+void mem_dump(adr start, int n) {
+	int i;
+	for (i = start; i < start + n; i = i + 2) {
+		trace(0, "%06o : %06o\n", i, w_read(i));
+	}
+}
 
 
 
@@ -181,9 +180,16 @@ void test_mem()
 	printf ("%04x = %02hhx%02hhx\n", w , b1 , b0);
 }
 
-int main()
+
+
+
+int main(int argc, char * argv[])
 {
-	load_file();
-	mem_dump(0x200, 0xc);
+	printf("3 arg is %s\n", argv[2]);
+	printf("there %d argc\n", argc);
+	load_file(argv[argc - 1]);
+	//print_reg();
+	//mem_dump(0200, 10);
+
 	return 0;
 }

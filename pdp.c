@@ -18,41 +18,65 @@ word reg[8];
 #define FULL_DEBUG 2
 
 int debug_level = DEBUG;
+
 #define sp reg[6]
 #define pc reg[7]
+//x3
+#define ostat 0177564
+#define odata 0177566
 
+//какие параметры имеет команда 
+#define NO_PARAM 0
+#define HAS_SS 1
+//x3
+#define HAS_DD (1<<1)
+#define HAS_XX (1<<5)
+#define HAS_R  (1<<3)
+#define HAS_NN (1<<4)
 
-#define NO_PARAM	0
-#define HAS_SS		1
-#define HAS_DD		2
-#define HAS_NN		4
-#define HAS_XX		8
+int nn, rr, xx, z, b, n;
 
 
 byte b_read  (adr a);
 void b_write (adr a, byte val);
 word w_read  (adr a);
 void w_write (adr a, word val);
+void do_add();
+void do_mov();
+void do_halt();
+void do_unknown();
+void do_sob();
 void mem_dump(adr start, word n);
 void load_file(char * s);
 void test_mem();
 void print_reg();
+void run();
+struct SSDD get_mode(word w);
 
 
 
-// struct Command {
-// 	word opcode;
-// 	word mask;
-// 	const char * name;
-// 	void (*do_func)();
+struct Command {
+	word opcode;
+	word mask;
+	const char * name;
+	void (*do_func)();
+	byte param;
 			
-// }	command[] = {
-// 	{0010000, 0170000, "mov",		do_mov},
-// 	{0060000, 0170000, "add",		do_add},	
-// 	{0000000, 0177777, "halt",		do_halt},
-// 	{0000000, 0170000, "unknown", 	do_unknown}	
-// };
+}	cmdlist[] = {
+	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
+	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
+	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
+	//{077000,  0xFF00,  "sob",     do_sob,     HAS_NN|HAS_R},
+	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
+};
 
+
+
+
+struct SSDD {
+	word val;
+	adr a;
+} ss, dd;
 
 
 //запись/чтение из памяти 
@@ -74,11 +98,16 @@ word w_read  (adr a)
     res = (word)(mem[a]) | (word)(mem[a+1] << 8);
     return res;        
 }
-void w_write (adr a, word val)
+void w_write(adr a, word val) 
 {
-    assert (a % 2 == 0);
-    mem[a] = LO(val);
-    mem[a+1] = HI(val);
+    if (a < 8){
+        reg[a] = val & 0xFF;
+    }
+    else{
+        mem[a] = val & 0xFF;
+        mem[a + 1] = (val >> 8) & 0xFF;
+    }
+    //printf("%d",val);
 }
 
 
@@ -86,10 +115,14 @@ void w_write (adr a, word val)
 
 //печать регистра
 void print_reg() {
-	printf("\n");
 	int i;
-	for (i = 0; i < 8; i++) {
-		printf("R%d:%06o ", i, reg[i]);
+	printf("\n Rigisters are: \n");
+	for (i = 0; i < 4; ++i) {
+		printf("R%d : %.7o ", i, reg[i]);
+	}
+	printf("\n");
+	for (i = 4; i < 8; ++i) {
+		printf("R%d : %.7o ", i, reg[i]);
 	}
 	printf("\n");
 }
@@ -98,14 +131,7 @@ void print_reg() {
 
 
 
-void do_mov()
-{
 
-}
-void do_add()
-{
-	exit(0);
-}
 void do_halt()
 {
 	printf("\n");
@@ -116,6 +142,30 @@ void do_halt()
 void do_unknown()
 {
 	exit(0);
+}
+
+// x3
+void do_mov() {
+    if (dd.a == odata) {
+        printf("-----%c--- \n", ss.val);
+    }
+    w_write(dd.a, ss.val);
+    z = (ss.val == 0);
+}
+void do_add() {
+    if (dd.a == odata) {
+        printf("-----%c--- \n", ss.val+dd.val);
+    }
+    w_write(dd.a, ss.val + dd.val);
+    z = ((ss.val + dd.val) == 0);
+}
+
+void do_sob()
+{
+    reg[rr]--;
+    if (reg[rr] != 0)
+        pc = pc - 2*nn;
+    printf("R%d",rr);
 }
 
 
@@ -149,7 +199,7 @@ void load_file(char * s) {
 
 
 
-void trace(int dbg_lvl, char * format, ...) {
+void trace(int dbg_lvl, char * format, ...) {//1/2 x3
 	if (dbg_lvl != debug_level)
 		return;
 	va_list argptr;
@@ -160,10 +210,13 @@ void trace(int dbg_lvl, char * format, ...) {
 
 
 
-void mem_dump(adr start, int n) {
+void mem_dump(adr start, int n) 
+{
+	printf("\n Memory dumping \n");
 	int i;
-	for (i = start; i < start + n; i = i + 2) {
-		trace(0, "%06o : %06o\n", i, w_read(i));
+	for (i = start; i < start + n; i = i + 2) 
+	{
+		printf("%07o : %07o\n", i, w_read(i));
 	}
 }
 
@@ -183,13 +236,151 @@ void test_mem()
 
 
 
+struct SSDD get_mode(word w)
+{
+	struct SSDD res;
+	word nn = w & 7;
+	word m = (w>>3) & 7;
+	switch(m)
+	{
+		case 0:
+			res.a = nn;
+			res.val = reg[nn];
+			trace(0, "R%d", nn);
+			break;
+		case 1:
+			res.a = reg[nn];
+			if (b)
+			{
+				res.val = b_read(res.a);
+			}
+			else
+			{
+				res.val = w_read(res.a);
+			}
+			trace(0, "(R%d)", nn);
+			break;
+		case 2://x3
+			res.a = reg[nn];
+			if (b && (nn < 6)) 
+            {
+                res.val = b_read(res.a);
+                reg[nn]++;
+            }
+            else 
+            {
+                res.val = w_read(res.a);
+                reg[nn] = reg[nn] + 2;
+            } 
+            if (nn != 7) 
+            {
+               	trace(0, "(R%d)+", nn);
+            } 
+            else 
+            { 
+                trace(0, "#%o", res.val);
+            }
+            break;
+        case 3://x3
+            res.a = w_read(reg[nn]);
+            if (b) 
+            {
+                res.val = b_read(res.a);
+            }
+            else 
+            {
+                res.val = w_read(res.a);
+            }
+            if (nn != 7) 
+            {
+                printf("  @(R%d)+ ", nn);
+            }
+            else 
+            {
+                printf("  #%.6o ", res.val);
+            }
+            reg[nn]+=2;
+            break;
+        case 4://x3
+            if (b)
+                reg[nn]--;
+            else
+                reg[nn]= reg[nn] - 2;
+            res.a = reg[nn];
+            if (b)
+                res.val = b_read(res.a);
+            else
+                res.val = w_read(res.a);
+            if (nn != 7) 
+            {
+			trace(0, "-(R%d)", nn);
+			}
+			else 
+			{
+			trace(0, "#%o", res.val);
+			}
+            printf("-(pc)");
+            break;
+        default:
+            printf("Not implemented");
+
+	}
+	return res;
+}
+
+void run()//x3
+{
+    pc = 01000;
+    while(1) {
+        word w = w_read(pc) & 0xffff;
+       //z = w;
+        b = w >> 15;
+        printf("%06o:%06o ", pc, w);
+        pc += 2;
+        for (int i = 0; ; i++){
+            struct Command cmd = cmdlist[i];
+            if((w & cmd.mask) == cmd.opcode) {
+                printf("%s", cmd.name);
+                printf(" ");
+                if (cmd.param & HAS_SS)
+                    ss = get_mode(w>>6);
+                if (cmd.param & HAS_DD)
+                    dd = get_mode(w);
+                if (cmd.param & HAS_NN)
+                    nn = w & 0x3F;
+                if (cmd.param & HAS_R)
+                    rr = (w >> 6) & 7;
+                if (cmd.param & HAS_XX)
+                    xx = (char)w ;
+                //z = w;
+                //b = w >> 15;
+                //printf("\n");
+                cmd.do_func();
+                print_reg();
+                break;
+            }
+        }
+        
+        printf("\n");
+    }
+}
+
+
+
+
+
+
 int main(int argc, char * argv[])
 {
 	printf("3 arg is %s\n", argv[2]);
 	printf("there %d argc\n", argc);
 	load_file(argv[argc - 1]);
-	//print_reg();
-	//mem_dump(0200, 10);
+	mem_dump(0x200, 0xc);
+	load_file(argv[argc - 1]);
+	print_reg();
+	// print_reg();
+	// mem_dump(0200, 10);
+	// run();
 
 	return 0;
 }

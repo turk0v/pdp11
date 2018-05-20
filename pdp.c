@@ -29,10 +29,10 @@ int debug_level = DEBUG;
 #define NO_PARAM 0
 #define HAS_SS 1
 //x3
-#define HAS_DD 2
-#define HAS_XX 8
-//#define HAS_R  
-#define HAS_NN 4
+#define HAS_DD (1<<1)
+#define HAS_XX (1<<4)
+#define HAS_R  (1<<2)
+#define HAS_NN (1<<3)
 
 int nn, rr, xx, z, b, n;
 
@@ -116,7 +116,7 @@ void w_write(adr a, word val)
 //печать регистра
 void print_reg() {
 	int i;
-	printf("\n Rigisters are: \n");
+	printf("\nRigisters are: \n");
 	for (i = 0; i < 4; ++i) {
 		printf("R%d : %.7o ", i, reg[i]);
 	}
@@ -146,16 +146,16 @@ void do_unknown()
 
 // x3
 void do_mov() {
-    if (dd.a == odata) {
-        printf("-----%c--- \n", ss.val);
-    }
+    // if (dd.a == odata) {
+    //     printf("-----%c--- \n", ss.val);
+    // }
     w_write(dd.a, ss.val);
     z = (ss.val == 0);
 }
 void do_add() {
-    if (dd.a == odata) {
-        printf("-----%c--- \n", ss.val+dd.val);
-    }
+    // if (dd.a == odata) {
+    //     printf("-----%c--- \n", ss.val+dd.val);
+    // }
     w_write(dd.a, ss.val + dd.val);
     z = ((ss.val + dd.val) == 0);
 }
@@ -212,7 +212,7 @@ void trace(int dbg_lvl, char * format, ...) {//1/2 x3
 
 void mem_dump(adr start, int n) 
 {
-	printf("\n Memory dumping \n");
+	printf("\nMemory dumping \n");
 	int i;
 	for (i = start; i < start + n; i = i + 2) 
 	{
@@ -246,7 +246,7 @@ struct SSDD get_mode(word w)
 		case 0:
 			res.a = nn;
 			res.val = reg[nn];//регистр содержит искомое значение
-			printf("R%d", nn);
+			printf("R%d ", nn);
 			break;
 		case 1:
 			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение
@@ -254,7 +254,7 @@ struct SSDD get_mode(word w)
 				res.val = b_read(res.a);
 			else
 				res.val = w_read(res.a);
-			printf("(R%d)", nn);
+			printf("(R%d) ", nn);
 			break;
 		case 2:
 			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
@@ -270,11 +270,11 @@ struct SSDD get_mode(word w)
 			}
             if (nn != 7) 
             {
-               	printf("(R%d)+", nn);
+               	printf("(R%d)+ ", nn);
             } 
             else 
             { 
-                printf("#%06o", res.val);
+                printf("#%o ", res.val);
             }
             break;
         case 3:
@@ -298,16 +298,19 @@ struct SSDD get_mode(word w)
             reg[nn]+=2;
             break;
         case 4:
-            if (b) //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
-                reg[nn]--;
-            else
-                reg[nn]-= 2;
-            res.a = reg[nn];
             if (b)
-                res.val = b_read(res.a);
+            { //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
+                reg[nn]--;
+            	res.a = reg[nn];
+            	res.val = b_read(res.a);
+            }
             else
-                res.val = w_read(res.a);
-			printf("-(R%d)", nn);
+            {
+                reg[nn]-= 2;
+            	res.a = reg[nn];
+            	res.val = w_read(res.a);
+            }
+			printf("-(R%d) ", nn);
             break;
         case 5:
         	reg[nn]-=2;
@@ -317,6 +320,8 @@ struct SSDD get_mode(word w)
             else
                 res.val = w_read(res.a);
             printf("@-(R%d) ", nn);
+        case 6:
+
 
         default:
             printf("Not implemented");
@@ -325,20 +330,24 @@ struct SSDD get_mode(word w)
 	return res;
 }
 
-void run()//x3
+void run()
 {
+	printf("\nRunning \n");
     pc = 01000;
+
     while(1) {
-        word w = w_read(pc) & 0xffff;
-       //z = w;
-        b = w >> 15;
-        printf("%06o:%06o ", pc, w);
+        word w = w_read(pc) & 0xffff;// можно коммментить или нет??
+        b = w >> 15;//этим определяем байт или не байт
+        printf("%06o : %06o ", pc, w);
+        int i;
         pc += 2;
-        for (int i = 0; ; i++){
+        for (i = 0; i < sizeof(cmdlist)/sizeof(struct Command) ; i++)
+        {
             struct Command cmd = cmdlist[i];
-            if((w & cmd.mask) == cmd.opcode) {
-                printf("%s", cmd.name);
-                printf(" ");
+            if((w & cmd.mask) == cmd.opcode) // команда / не команда
+            {
+                printf("%s ", cmd.name);
+
                 if (cmd.param & HAS_SS)
                     ss = get_mode(w>>6);
                 if (cmd.param & HAS_DD)
@@ -353,7 +362,7 @@ void run()//x3
                 //b = w >> 15;
                 //printf("\n");
                 cmd.do_func();
-                print_reg();
+                //print_reg();
                 break;
             }
         }
@@ -378,6 +387,7 @@ int main(int argc, char * argv[])
 	// print_reg();
 	// mem_dump(0200, 10);
 	run();
+	printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );
 
 	return 0;
 }

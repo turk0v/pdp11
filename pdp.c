@@ -29,10 +29,10 @@ int debug_level = DEBUG;
 #define NO_PARAM 0
 #define HAS_SS 1
 //x3
-#define HAS_DD (1<<1)
-#define HAS_XX (1<<5)
-#define HAS_R  (1<<3)
-#define HAS_NN (1<<4)
+#define HAS_DD 2
+#define HAS_XX 8
+//#define HAS_R  
+#define HAS_NN 4
 
 int nn, rr, xx, z, b, n;
 
@@ -239,50 +239,46 @@ void test_mem()
 struct SSDD get_mode(word w)
 {
 	struct SSDD res;
-	word nn = w & 7;
-	word m = (w>>3) & 7;
-	switch(m)
+	word nn = w & 7;//достаем первые три бита
+	word mode = (w>>3) & 7;//достаем вторые три бита 
+	switch(mode)//сравниваем моду с разными числами
 	{
 		case 0:
 			res.a = nn;
-			res.val = reg[nn];
-			trace(0, "R%d", nn);
+			res.val = reg[nn];//регистр содержит искомое значение
+			printf("R%d", nn);
 			break;
 		case 1:
-			res.a = reg[nn];
-			if (b)
-			{
+			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение
+			if(b)
 				res.val = b_read(res.a);
+			else
+				res.val = w_read(res.a);
+			printf("(R%d)", nn);
+			break;
+		case 2:
+			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
+			if (b && (reg[nn] < 6 ))
+			{
+				res.val = b_read(res.a); //байтовая +1
+				reg[nn]++;
 			}
 			else
 			{
-				res.val = w_read(res.a);
+				res.val = w_read(res.a);//слово +2
+				reg[nn]+=2;
 			}
-			trace(0, "(R%d)", nn);
-			break;
-		case 2://x3
-			res.a = reg[nn];
-			if (b && (nn < 6)) 
-            {
-                res.val = b_read(res.a);
-                reg[nn]++;
-            }
-            else 
-            {
-                res.val = w_read(res.a);
-                reg[nn] = reg[nn] + 2;
-            } 
             if (nn != 7) 
             {
-               	trace(0, "(R%d)+", nn);
+               	printf("(R%d)+", nn);
             } 
             else 
             { 
-                trace(0, "#%o", res.val);
+                printf("#%06o", res.val);
             }
             break;
-        case 3://x3
-            res.a = w_read(reg[nn]);
+        case 3:
+            res.a = w_read(reg[nn]);//регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
             if (b) 
             {
                 res.val = b_read(res.a);
@@ -301,26 +297,27 @@ struct SSDD get_mode(word w)
             }
             reg[nn]+=2;
             break;
-        case 4://x3
-            if (b)
+        case 4:
+            if (b) //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
                 reg[nn]--;
             else
-                reg[nn]= reg[nn] - 2;
+                reg[nn]-= 2;
             res.a = reg[nn];
             if (b)
                 res.val = b_read(res.a);
             else
                 res.val = w_read(res.a);
-            if (nn != 7) 
-            {
-			trace(0, "-(R%d)", nn);
-			}
-			else 
-			{
-			trace(0, "#%o", res.val);
-			}
-            printf("-(pc)");
+			printf("-(R%d)", nn);
             break;
+        case 5:
+        	reg[nn]-=2;
+        	res.a = w_read(reg[nn]);
+            if (b)
+                res.val = b_read(res.a);
+            else
+                res.val = w_read(res.a);
+            printf("@-(R%d) ", nn);
+
         default:
             printf("Not implemented");
 
@@ -380,7 +377,7 @@ int main(int argc, char * argv[])
 	print_reg();
 	// print_reg();
 	// mem_dump(0200, 10);
-	// run();
+	run();
 
 	return 0;
 }

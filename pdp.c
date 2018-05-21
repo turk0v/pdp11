@@ -27,13 +27,12 @@ int debug_level = DEBUG;
 
 //какие параметры имеет команда 
 #define NO_PARAM 0
-#define HAS_SS 1
-//x3
-#define HAS_DD (1<<1)
-#define HAS_XX (1<<4)
-#define HAS_R  (1<<2)
-#define HAS_NN (1<<3)
-
+#define HAS_XX 1		
+#define HAS_SS (1<<1) 	
+#define HAS_DD (1<<2) 	
+#define HAS_NN (1<<3) 	
+#define HAS_R4 (1<<4) 
+#define HAS_R6 (1<<5)
 int nn, rr, xx, z, b, n;
 
 
@@ -66,7 +65,7 @@ struct Command {
 	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
 	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
 	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
-	//{077000,  0xFF00,  "sob",     do_sob,     HAS_NN|HAS_R},
+	{077000,  0xFF00,  "sob",     do_sob,     HAS_DD|HAS_R4},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
 };
 
@@ -150,22 +149,22 @@ void do_mov() {
     //     printf("-----%c--- \n", ss.val);
     // }
     w_write(dd.a, ss.val);
-    z = (ss.val == 0);
+    //z = (ss.val == 0);
 }
 void do_add() {
     // if (dd.a == odata) {
     //     printf("-----%c--- \n", ss.val+dd.val);
     // }
-    w_write(dd.a, ss.val + dd.val);
-    z = ((ss.val + dd.val) == 0);
+    w_write(dd.a, (ss.val + dd.val));
+    //z = ((ss.val + dd.val) == 0);
 }
 
 void do_sob()
 {
-    reg[rr]--;
-    if (reg[rr] != 0)
-        pc = pc - 2*nn;
-    printf("R%d",rr);
+	reg[rr]--;
+	if (reg[rr] != 0)
+		pc = (pc - 2*nn) & 0xffff;
+	printf(" aaaa R%d\n", rr);
 }
 
 
@@ -289,11 +288,11 @@ struct SSDD get_mode(word w)
             }
             if (nn != 7) 
             {
-                printf("  @(R%d)+ ", nn);
+                printf(" @(R%d)+ ", nn);
             }
             else 
             {
-                printf("  #%.6o ", res.val);
+                printf(" #%o ", res.val);
             }
             reg[nn]+=2;
             break;
@@ -321,6 +320,8 @@ struct SSDD get_mode(word w)
                 res.val = w_read(res.a);
             printf("@-(R%d) ", nn);
         case 6:
+
+
 
 
         default:
@@ -352,17 +353,33 @@ void run()
                     ss = get_mode(w>>6);
                 if (cmd.param & HAS_DD)
                     dd = get_mode(w);
-                if (cmd.param & HAS_NN)
-                    nn = w & 0x3F;
-                if (cmd.param & HAS_R)
-                    rr = (w >> 6) & 7;
-                if (cmd.param & HAS_XX)
-                    xx = (char)w ;
+                if(cmd.param & HAS_R4)
+					rr = (w >> 6)&7;
+				if(cmd.param & HAS_NN)
+					nn = w & 63;
+				// if(cmd.param & NO_PARAM)
+				// {
+				// 	printf("\n unknown is here \n");
+				// 	continue;
+				// }
+                // 	if (cmd.param & HAS_DD)
+                // 	{
+                //     	rr = (w >> 6) & 7;
+                //     	printf("R%o, ", rr);
+                //     }
+                //     else
+                //     {
+                //     	rr = w & 07;
+                //     	printf("R%o", rr);
+                //     }
+                // if (cmd.param & HAS_XX)
+                //     xx = (char)w ;
                 //z = w;
                 //b = w >> 15;
                 //printf("\n");
                 cmd.do_func();
-                //print_reg();
+
+                print_reg();
                 break;
             }
         }
@@ -378,8 +395,6 @@ void run()
 
 int main(int argc, char * argv[])
 {
-	printf("3 arg is %s\n", argv[2]);
-	printf("there %d argc\n", argc);
 	load_file(argv[argc - 1]);
 	mem_dump(0x200, 0xc);
 	load_file(argv[argc - 1]);
@@ -387,7 +402,8 @@ int main(int argc, char * argv[])
 	// print_reg();
 	// mem_dump(0200, 10);
 	run();
-	printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );
+	print_reg();
+	//printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );
 
 	return 0;
 }

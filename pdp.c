@@ -33,14 +33,12 @@ int debug_level = DEBUG;
 // #define HAS_NN (1<<3) 	
 // #define HAS_R4 (1<<4) 
 // #define HAS_R6 (1<<5)
-
 #define NO_PARAM 0
-#define HAS_XX 1
-#define HAS_SS (1<<1)
-#define HAS_DD (1<<2)
-#define HAS_NN (1<<3)
-#define HAS_R6 (1<<4)
-#define HAS_R4 (1<<5)
+#define HAS_SS 1
+#define HAS_DD (1<<1)
+#define HAS_XX (1<<5)
+#define HAS_R  (1<<3)
+#define HAS_NN (1<<4)
 
 int nn, rr, xx, z, b, n;
 
@@ -78,7 +76,7 @@ struct Command {
 	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
 	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
 	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
-	{0077000,  0177000,  "sob",     do_sob,     HAS_DD|HAS_R4},
+	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},//here
 	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
 	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
@@ -174,12 +172,12 @@ void do_add() {
     //z = ((ss.val + dd.val) == 0);
 }
 
-void do_sob()
+void do_sob()//here
 {
-    reg[R4]--;
-    if (reg[R4] != 0)
-        pc = pc - 2*nn;
-    printf("R%d\n", R4);
+    reg[rr]--;
+    if (reg[rr] != 0)
+        pc = pc - 2*(nn);
+    printf("R%d",rr);
 }
 
 void do_clr()
@@ -187,7 +185,7 @@ void do_clr()
     w_write(dd.a, 0);
 }
 
-void do_movb()
+void do_movb()//не работает
 {
     b_write(dd.a, ss.val);
 }
@@ -377,16 +375,14 @@ void run()
 					ss = get_mode(w>>6);
 				if(cmd.param & HAS_DD)
 					dd = get_mode(w);
-				if(cmd.param & HAS_R4)
-					R4= (w >> 6)&7;
-				if(cmd.param & HAS_R6)
-					R6 = (w)&7;
-				if(cmd.param & HAS_NN)
-					nn = w & 63;	
+                if (cmd.param & HAS_NN)
+                    nn = w & 0x3F;
+                if (cmd.param & HAS_R)
+                    rr = (w >> 6) & 7;
                 //printf("\n");
                 cmd.do_func();
 
-                print_reg();
+                //print_reg();
                 break;
             }
         }
@@ -408,7 +404,8 @@ int main(int argc, char * argv[])
 	load_file(argv[argc - 1]);
 	print_reg();
 	// print_reg();
-	// mem_dump(0200, 10);
+	mem_dump(0x200, 18);
+	b_write(ostat, 0xFF);
 	run();
 	print_reg();
 	//printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );

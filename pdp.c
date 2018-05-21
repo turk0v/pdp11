@@ -26,14 +26,25 @@ int debug_level = DEBUG;
 #define odata 0177566
 
 //какие параметры имеет команда 
+// #define NO_PARAM 0
+// #define HAS_XX 1		
+// #define HAS_SS (1<<1) 	
+// #define HAS_DD (1<<2) 	
+// #define HAS_NN (1<<3) 	
+// #define HAS_R4 (1<<4) 
+// #define HAS_R6 (1<<5)
+
 #define NO_PARAM 0
-#define HAS_XX 1		
-#define HAS_SS (1<<1) 	
-#define HAS_DD (1<<2) 	
-#define HAS_NN (1<<3) 	
-#define HAS_R4 (1<<4) 
-#define HAS_R6 (1<<5)
+#define HAS_XX 1
+#define HAS_SS (1<<1)
+#define HAS_DD (1<<2)
+#define HAS_NN (1<<3)
+#define HAS_R6 (1<<4)
+#define HAS_R4 (1<<5)
+
 int nn, rr, xx, z, b, n;
+
+int R4, R6;
 
 
 byte b_read  (adr a);
@@ -45,6 +56,8 @@ void do_mov();
 void do_halt();
 void do_unknown();
 void do_sob();
+void do_clr();
+void do_movb();
 void mem_dump(adr start, word n);
 void load_file(char * s);
 void test_mem();
@@ -65,7 +78,9 @@ struct Command {
 	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
 	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
 	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
-	{077000,  0xFF00,  "sob",     do_sob,     HAS_DD|HAS_R4},
+	{0077000,  0177000,  "sob",     do_sob,     HAS_DD|HAS_R4},
+	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
+	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
 };
 
@@ -140,7 +155,7 @@ void do_halt()
 }
 void do_unknown()
 {
-	exit(0);
+	printf("Doing nothing");
 }
 
 // x3
@@ -161,10 +176,20 @@ void do_add() {
 
 void do_sob()
 {
-	reg[rr]--;
-	if (reg[rr] != 0)
-		pc = (pc - 2*nn) & 0xffff;
-	printf(" aaaa R%d\n", rr);
+    reg[R4]--;
+    if (reg[R4] != 0)
+        pc = pc - 2*nn;
+    printf("R%d\n", R4);
+}
+
+void do_clr()
+{
+    w_write(dd.a, 0);
+}
+
+void do_movb()
+{
+    b_write(dd.a, ss.val);
 }
 
 
@@ -257,7 +282,7 @@ struct SSDD get_mode(word w)
 			break;
 		case 2:
 			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
-			if (b && (reg[nn] < 6 ))
+			if ((b) && (reg[nn] < 6 ))
 			{
 				res.val = b_read(res.a); //байтовая +1
 				reg[nn]++;
@@ -337,45 +362,27 @@ void run()
     pc = 01000;
 
     while(1) {
-        word w = w_read(pc) & 0xffff;// можно коммментить или нет??
+        word w = w_read(pc) & 0xffff;
         b = w >> 15;//этим определяем байт или не байт
         printf("%06o : %06o ", pc, w);
         int i;
         pc += 2;
-        for (i = 0; i < sizeof(cmdlist)/sizeof(struct Command) ; i++)
+        for (i = 0; ; i++)
         {
             struct Command cmd = cmdlist[i];
             if((w & cmd.mask) == cmd.opcode) // команда / не команда
             {
                 printf("%s ", cmd.name);
-
-                if (cmd.param & HAS_SS)
-                    ss = get_mode(w>>6);
-                if (cmd.param & HAS_DD)
-                    dd = get_mode(w);
-                if(cmd.param & HAS_R4)
-					rr = (w >> 6)&7;
+                if(cmd.param & HAS_SS)
+					ss = get_mode(w>>6);
+				if(cmd.param & HAS_DD)
+					dd = get_mode(w);
+				if(cmd.param & HAS_R4)
+					R4= (w >> 6)&7;
+				if(cmd.param & HAS_R6)
+					R6 = (w)&7;
 				if(cmd.param & HAS_NN)
-					nn = w & 63;
-				// if(cmd.param & NO_PARAM)
-				// {
-				// 	printf("\n unknown is here \n");
-				// 	continue;
-				// }
-                // 	if (cmd.param & HAS_DD)
-                // 	{
-                //     	rr = (w >> 6) & 7;
-                //     	printf("R%o, ", rr);
-                //     }
-                //     else
-                //     {
-                //     	rr = w & 07;
-                //     	printf("R%o", rr);
-                //     }
-                // if (cmd.param & HAS_XX)
-                //     xx = (char)w ;
-                //z = w;
-                //b = w >> 15;
+					nn = w & 63;	
                 //printf("\n");
                 cmd.do_func();
 
@@ -387,6 +394,7 @@ void run()
         printf("\n");
     }
 }
+
 
 
 

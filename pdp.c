@@ -113,11 +113,12 @@ word w_read  (adr a)
 void w_write(adr a, word val) 
 {
     if (a < 8){
-        reg[a] = val & 0xFF;
+        reg[a] = val;
     }
     else{
-        mem[a] = val & 0xFF;
-        mem[a + 1] = (val >> 8) & 0xFF;
+    	assert(!(a % 2));
+        mem[a] = val & 0xff;
+        mem[a + 1] = (val >> 8) & 0xff;
     }
     //printf("%d",val);
 }
@@ -157,19 +158,16 @@ void do_unknown()
 }
 
 // x3
-void do_mov() {
-    // if (dd.a == odata) {
-    //     printf("-----%c--- \n", ss.val);
-    // }
-    w_write(dd.a, ss.val);
-    //z = (ss.val == 0);
+void do_mov() 
+{
+    w_write(dd.a, (ss.val & 0xFFFF));
+    return;
 }
-void do_add() {
-    // if (dd.a == odata) {
-    //     printf("-----%c--- \n", ss.val+dd.val);
-    // }
-    w_write(dd.a, (ss.val + dd.val));
-    //z = ((ss.val + dd.val) == 0);
+void do_add() 
+{
+
+    w_write(dd.a, ((dd.val + ss.val) & 0xFFFF));
+    return;
 }
 
 void do_sob()//here
@@ -401,11 +399,11 @@ int main(int argc, char * argv[])
 {
 	load_file(argv[argc - 1]);
 	mem_dump(0x200, 0xc);
-	load_file(argv[argc - 1]);
+	//load_file(argv[argc - 1]);
 	print_reg();
 	// print_reg();
-	mem_dump(0x200, 18);
-	b_write(ostat, 0xFF);
+	//mem_dump(0x200, 18);
+	//b_write(ostat, 0xFF);
 	run();
 	print_reg();
 	//printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );

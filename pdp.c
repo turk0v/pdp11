@@ -40,9 +40,10 @@ int debug_level = DEBUG;
 #define HAS_R  (1<<3)
 #define HAS_NN (1<<4)
 
-int nn, rr, xx, z, b, n;
+int nn, rr, xx, z, n;
 
 int R4, R6;
+short int N,Z,C,b;
 
 
 byte b_read  (adr a);
@@ -56,12 +57,15 @@ void do_unknown();
 void do_sob();
 void do_clr();
 void do_movb();
+void do_br();
+void do_beq();
 void mem_dump(adr start, word n);
 void load_file(char * s);
 void test_mem();
 void print_reg();
 void run();
 struct SSDD get_mode(word w);
+void NZVC(word x);
 
 
 
@@ -79,6 +83,8 @@ struct Command {
 	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},
 	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
 	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
+	{0000400, 0177400, "br",		do_br, 		HAS_XX},
+	{0001400, 0177400, "beq",		do_beq,		HAS_XX},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
 };
 
@@ -160,16 +166,18 @@ void do_unknown()
 	printf("Doing nothing");
 }
 
-// x3
+
 void do_mov() 
 {
     w_write(dd.a, (ss.val & 0xFFFF));
+    NZVC(ss.val & 0xFFFF);
     return;
 }
 void do_add() 
 {
 
     w_write(dd.a, ((dd.val + ss.val) & 0xFFFF));
+    NZVC((dd.val + ss.val) & 0xFFFF);
     return;
 }
 
@@ -179,16 +187,30 @@ void do_sob()
     if (reg[rr] != 0)
         pc = pc - 2*(nn);
     printf("R%d",rr);
+    NZVC(pc);
 }
 
 void do_clr()
 {
     w_write(dd.a, 0);
+    NZVC(0);
 }
 
-void do_movb()//не работает
+void do_movb()
 {
     b_write(dd.a, ss.val);
+    NZVC(ss.val);
+}
+
+void do_br()
+{
+	pc = (pc + (2 * xx));
+}
+
+void do_beq()
+{
+	if (Z == 1)
+		do_br();
 }
 
 
@@ -324,13 +346,18 @@ struct SSDD get_mode(word w)
             if (b)
             { //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
                 reg[nn]--;
-            	res.a = reg[nn];
-            	res.val = b_read(res.a);
             }
             else
             {
                 reg[nn]-= 2;
-            	res.a = reg[nn];
+            }
+            res.a = reg[nn];
+            if(b)
+            {
+            	res.val = b_read(res.a);
+            }
+            else
+            {
             	res.val = w_read(res.a);
             }
 			printf("-(R%d) ", nn);
@@ -380,16 +407,33 @@ void run()
                     nn = w & 0x3F;
                 if (cmd.param & HAS_R)
                     rr = (w >> 6) & 7;
+                if (cmd.param & HAS_XX)
+                    xx = (char)w ;
                 //printf("\n");
                 cmd.do_func();
 
-                print_reg();
+                //print_reg();
                 break;
             }
         }
         
         printf("\n");
     }
+}
+
+void NZVC(word x)
+{
+	Z = (x == 0); //флаг нуля 
+	if(b)
+	{
+		N = (x>>7) & 1; //флаг отрицательного байта для байта
+		C = (x>>8) & 1; //флаг переполнения байта для байта
+	}
+	else 
+	{
+		N = (x>>15) & 1; //флаг отрицательного байта для слова
+		C = (x>>16) & 1; //флаг переполнения байта для слова
+	}
 }
 
 

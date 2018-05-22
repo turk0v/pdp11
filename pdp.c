@@ -76,7 +76,7 @@ struct Command {
 	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
 	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
 	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
-	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},//here
+	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},
 	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
 	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
@@ -94,7 +94,10 @@ struct SSDD {
 //запись/чтение из памяти 
 void b_write (adr a, byte val)
 {
-    mem[a] = val;
+	if (a < 8)
+		reg[a] = val & 0xFF;
+	else
+    	mem[a] = val & 0xFF;
 }
 
 
@@ -113,7 +116,7 @@ word w_read  (adr a)
 void w_write(adr a, word val) 
 {
     if (a < 8){
-        reg[a] = val;
+        reg[a] = val & 0xff;
     }
     else{
     	assert(!(a % 2));
@@ -170,7 +173,7 @@ void do_add()
     return;
 }
 
-void do_sob()//here
+void do_sob()
 {
     reg[rr]--;
     if (reg[rr] != 0)
@@ -278,7 +281,7 @@ struct SSDD get_mode(word w)
 			break;
 		case 2:
 			res.a = reg[nn]; //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
-			if ((b) && (reg[nn] < 6 ))
+			if ((b) && (nn < 6 ))
 			{
 				res.val = b_read(res.a); //байтовая +1
 				reg[nn]++;
@@ -340,7 +343,7 @@ struct SSDD get_mode(word w)
             else
                 res.val = w_read(res.a);
             printf("@-(R%d) ", nn);
-        case 6:
+        //case 6:
 
 
 
@@ -380,7 +383,7 @@ void run()
                 //printf("\n");
                 cmd.do_func();
 
-                //print_reg();
+                print_reg();
                 break;
             }
         }

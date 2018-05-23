@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 
 typedef unsigned char byte;
 typedef int word;
@@ -18,6 +19,7 @@ word reg[8];
 #define FULL_DEBUG 2
 
 int debug_level = DEBUG;
+char **global_argv;
 
 #define sp reg[6]
 #define pc reg[7]
@@ -31,8 +33,8 @@ int debug_level = DEBUG;
 #define HAS_DD (1 << 1)
 #define HAS_XX (1 << 2)
 #define HAS_R  (1 << 3)
-#define HAS_NN (1<<4)
-#define HAS_R6 (1<<5)
+#define HAS_NN (1 << 4)
+#define HAS_R6 (1 << 5)
 
 int nn, rr, xx, z, n;
 
@@ -76,20 +78,20 @@ struct Command {
 	byte param;
 			
 }	cmdlist[] = {
-	{0010000, 0170000, "mov",		do_mov, 	HAS_SS | HAS_DD },
-	{0060000, 0170000, "add",		do_add , 	HAS_SS | HAS_DD },	
-	{0000000, 0177777, "halt",		do_halt, 	NO_PARAM},
-	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},
+	{0010000, 0170000, 	"mov",		do_mov, 	HAS_SS | HAS_DD },
+	{0060000, 0170000, 	"add",		do_add , 	HAS_SS | HAS_DD },	
+	{0000000, 0177777, 	"halt",		do_halt, 	NO_PARAM},
+	{0077000, 0177000, "sob",     do_sob,     HAS_NN|HAS_R},
 	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
-	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
-	{0000400, 0177400, "br",		do_br, 		HAS_XX},
-	{0001400, 0177400, "beq",		do_beq,		HAS_XX},
+	{0110000, 0170000, 	"movb",		do_movb, 	HAS_SS | HAS_DD},
+	{0000400, 0177400, 	"br",		do_br, 		HAS_XX},
+	{0001400, 0177400, 	"beq",		do_beq,		HAS_XX},
 	{0105700, 0177700,  "tstb",     do_tstb,    HAS_DD},
 	{0100000, 0177400,  "bpl",  	do_bpl,     HAS_XX},
 	{0000100, 0177700,  "jmp",		do_jmp, 	HAS_DD},
 	{0000200, 0177770,  "rts",      do_rts,     HAS_R6},
 	{0004000, 0177000, 	"jsr",      do_jsr,    	HAS_R | HAS_DD},
-	{0000000, 0170000, "unknown", 	do_unknown ,NO_PARAM}	
+	{0000000, 0170000, 	"unknown", 	do_unknown ,NO_PARAM}	
 };
 
 
@@ -153,7 +155,7 @@ void print_reg() {
 
 
 
-
+//функции
 void do_halt()
 {
 	printf("\n");
@@ -202,12 +204,12 @@ void do_movb()
     NZVC(ss.val);
 }
 
-void do_br()
+void do_br()//ветка без условия
 {
 	pc = (pc + (2 * xx));
 }
 
-void do_beq()
+void do_beq() // ветка с условием
 {
 	printf(" %.6o", (pc + (2 * xx)) & 0xFFFF);
 	if (Z == 1)
@@ -218,24 +220,27 @@ void do_tstb() {
 	C = 0;
 	NZVC(dd.val);
 }
-void do_bpl() {
+void do_bpl() 
+{
 	printf(" %.6o", (pc + (2 * xx)) & 0xFFFF);
 	if (N == 0) {
 		do_br();
 	}
 }
 
-void do_jmp() {
-	pc = dd.a;
+void do_jmp() 
+{
+	pc = dd.a; //переходит в указанный адрес
 }
-void do_rts() {
+void do_rts()  //смотри 4 презентацию
+{
 	pc = reg[R6] & 0xFFFF;
 	reg[R6] = w_read(sp) & 0xFFFF;
 	sp = (sp + 2)  & 0xFFFF;
 	printf(" R%d", R6);
 }
 
-void do_jsr() {
+void do_jsr() { //смотри 4 презентацию 
 
 	sp = (sp - 2) & 0xFFFF; //push
 	w_write(sp, reg[rr] & 0xFFFF);
@@ -465,6 +470,7 @@ struct SSDD get_mode(word w)
 	return res;
 }
 
+
 void run()
 {
 	printf("\nRunning \n");
@@ -497,8 +503,8 @@ void run()
                 	R6 = w & 7;
                 //printf("\n");
                 cmd.do_func();
-
-                //print_reg();
+                if (strstr(global_argv[1], "-T" ) != 0)
+                	print_reg();
                 break;
             }
         }
@@ -522,24 +528,20 @@ void NZVC(word x)
 	}
 }
 
-
-
-
-
-
-
 int main(int argc, char * argv[])
 {
+	global_argv = argv;
 	load_file(argv[argc - 1]);
-	mem_dump(0x200, 0xc);
-	//load_file(argv[argc - 1]);
-	print_reg();
-	// print_reg();
-	//mem_dump(0x200, 18);
-	//b_write(ostat, 0xFF);
+	//int result;
+	//result = strcmp(check,argv[1]);
+	//printf("sign is %d", result);
+	//print_reg();
 	run();
 	print_reg();
-	//printf(" number is %d\n", sizeof(cmdlist)/sizeof(cmdlist[0]) );
 
 	return 0;
 }
+
+
+
+

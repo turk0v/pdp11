@@ -30,12 +30,13 @@ int debug_level = DEBUG;
 #define HAS_SS 1
 #define HAS_DD (1 << 1)
 #define HAS_XX (1 << 2)
-#define HAS_R (1 << 3)
+#define HAS_R  (1 << 3)
 #define HAS_NN (1<<4)
+#define HAS_R6 (1<<5)
 
 int nn, rr, xx, z, n;
 
-int R4, R6;
+int R4, R6,rd;
 short int N,Z,C,b;
 
 
@@ -54,6 +55,9 @@ void do_br();
 void do_beq();
 void do_tstb();
 void do_bpl();
+void do_jmp();
+void do_rts();
+void do_jsr();
 void mem_dump(adr start, word n);
 void load_file(char * s);
 void test_mem();
@@ -72,17 +76,20 @@ struct Command {
 	byte param;
 			
 }	cmdlist[] = {
-	{0010000, 0170000, "mov",		do_mov, HAS_SS | HAS_DD },
-	{0060000, 0170000, "add",		do_add , HAS_SS | HAS_DD },	
-	{0000000, 0177777, "halt",		do_halt, NO_PARAM},
+	{0010000, 0170000, "mov",		do_mov, 	HAS_SS | HAS_DD },
+	{0060000, 0170000, "add",		do_add , 	HAS_SS | HAS_DD },	
+	{0000000, 0177777, "halt",		do_halt, 	NO_PARAM},
 	{0077000,  0177000,  "sob",     do_sob,     HAS_NN|HAS_R},
 	{0005000, 0177700, 	"clr",		do_clr, 	HAS_DD},
 	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
 	{0000400, 0177400, "br",		do_br, 		HAS_XX},
 	{0001400, 0177400, "beq",		do_beq,		HAS_XX},
-	{0105700, 0177700,  "tstb",     	do_tstb,    HAS_DD},
-	{0100000, 0177400,  "bpl",  		do_bpl,     HAS_XX},
-	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
+	{0105700, 0177700,  "tstb",     do_tstb,    HAS_DD},
+	{0100000, 0177400,  "bpl",  	do_bpl,     HAS_XX},
+	{0000100, 0177700,  "jmp",		do_jmp, 	HAS_DD},
+	{0000200, 0177770,  "rts",      do_rts,     HAS_R6},
+	{0004000, 0177000, 	"jsr",      do_jsr,    	HAS_R | HAS_DD},
+	{0000000, 0170000, "unknown", 	do_unknown ,NO_PARAM}	
 };
 
 
@@ -216,6 +223,26 @@ void do_bpl() {
 	if (N == 0) {
 		do_br();
 	}
+}
+
+void do_jmp() {
+	pc = dd.a;
+}
+void do_rts() {
+	pc = reg[R6] & 0xFFFF;
+	reg[R6] = w_read(sp) & 0xFFFF;
+	sp = (sp + 2)  & 0xFFFF;
+	printf(" R%d", R6);
+}
+
+void do_jsr() {
+
+	sp = (sp - 2) & 0xFFFF; //push
+	w_write(sp, reg[rr] & 0xFFFF);
+	reg[rr] = pc & 0xFFFF;
+	pc = dd.a & 0xFFFF;
+	//printf("pc, %06o",pc);
+	printf(",R%d", rr);
 }
 
 
@@ -394,7 +421,39 @@ struct SSDD get_mode(word w)
 					//~ printf(" #%o ", result.val);
 				//~ }
 				break;
-        //case 6:
+        case 6:
+        		rd = w_read(pc);
+				pc += 2;
+				res.a = (reg[nn] + rd) & 0177777;
+				if (b) {
+					res.val = b_read(res.a);
+				} else {
+					res.val = w_read(res.a);
+				}
+				if (nn != 7) {
+					printf("%.6o(R%o) ", rd, nn);
+				}
+				else {
+					printf(" %.6o ", res.a);
+				}
+				break;
+		case 7:
+				rd = w_read(pc);
+				pc += 2;
+				res.a = w_read(reg[nn]);
+				res.a = w_read((res.a + rd) & 0177777);
+				if (b) {
+					res.val = b_read(res.a);
+				} else {
+					res.val = w_read(res.a);
+				}
+				if (n != 7) {
+					printf("@%.6o(R%o) ", rd, nn);
+				}
+				else {
+					printf(" @%.6o ", res.a);
+				}
+				break;	
 
 
 
@@ -434,6 +493,8 @@ void run()
                     rr = (w >> 6) & 7;
                 if (cmd.param & HAS_XX)
                     xx = (char)w ;
+                if (cmd.param & HAS_R6)
+                	R6 = w & 7;
                 //printf("\n");
                 cmd.do_func();
 
@@ -445,6 +506,7 @@ void run()
         printf("\n");
     }
 }
+
 void NZVC(word x)
 {
 	Z = (x == 0); //флаг нуля 

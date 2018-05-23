@@ -26,18 +26,11 @@ int debug_level = DEBUG;
 #define odata 0177566
 
 //какие параметры имеет команда 
-// #define NO_PARAM 0
-// #define HAS_XX 1		
-// #define HAS_SS (1<<1) 	
-// #define HAS_DD (1<<2) 	
-// #define HAS_NN (1<<3) 	
-// #define HAS_R4 (1<<4) 
-// #define HAS_R6 (1<<5)
 #define NO_PARAM 0
 #define HAS_SS 1
-#define HAS_DD (1<<1)
-#define HAS_XX (1<<5)
-#define HAS_R  (1<<3)
+#define HAS_DD (1 << 1)
+#define HAS_XX (1 << 2)
+#define HAS_R (1 << 3)
 #define HAS_NN (1<<4)
 
 int nn, rr, xx, z, n;
@@ -59,6 +52,8 @@ void do_clr();
 void do_movb();
 void do_br();
 void do_beq();
+void do_tstb();
+void do_bpl();
 void mem_dump(adr start, word n);
 void load_file(char * s);
 void test_mem();
@@ -85,6 +80,8 @@ struct Command {
 	{0110000, 0170000, "movb",		do_movb, 	HAS_SS | HAS_DD},
 	{0000400, 0177400, "br",		do_br, 		HAS_XX},
 	{0001400, 0177400, "beq",		do_beq,		HAS_XX},
+	{0105700, 0177700,  "tstb",     	do_tstb,    HAS_DD},
+	{0100000, 0177400,  "bpl",  		do_bpl,     HAS_XX},
 	{0000000, 0170000, "unknown", 	do_unknown , NO_PARAM}	
 };
 
@@ -98,36 +95,32 @@ struct SSDD {
 
 
 //запись/чтение из памяти 
-void b_write (adr a, byte val)
-{
-	if (a < 8)
-		reg[a] = val & 0xFF;
-	else
-    	mem[a] = val & 0xFF;
+void b_write(adr a, byte val) {
+ //   if (a == odata)
+ //       printf(" %c", val);
+    if (a < 8)
+        reg[a] = ((val>>7) ? (val | 0xFF00) : val);
+    else
+        mem[a] = val;
 }
 
 
-byte b_read  (adr a)
-{
-    return mem[a];
+byte b_read(adr a) {
+	return mem[a];
 }
 
-word w_read  (adr a)
-{
-    word res;
-    assert (a % 2 == 0);
-    res = (word)(mem[a]) | (word)(mem[a+1] << 8);
-    return res;        
+word w_read(adr a) {
+	return (mem[a + 1] << 8) | mem[a];
 }
 void w_write(adr a, word val) 
 {
     if (a < 8){
-        reg[a] = val & 0xff;
+        reg[a] = val;
     }
     else{
     	assert(!(a % 2));
         mem[a] = val & 0xff;
-        mem[a + 1] = (val >> 8) & 0xff;
+        mem[a + 1] = (val >> 8);
     }
     //printf("%d",val);
 }
@@ -209,8 +202,20 @@ void do_br()
 
 void do_beq()
 {
+	printf(" %.6o", (pc + (2 * xx)) & 0xFFFF);
 	if (Z == 1)
 		do_br();
+}
+
+void do_tstb() {
+	C = 0;
+	NZVC(dd.val);
+}
+void do_bpl() {
+	printf(" %.6o", (pc + (2 * xx)) & 0xFFFF);
+	if (N == 0) {
+		do_br();
+	}
 }
 
 
@@ -319,7 +324,7 @@ struct SSDD get_mode(word w)
             } 
             else 
             { 
-                printf("#%o ", res.val);
+                printf("#%06o ", res.val);
             }
             break;
         case 3:
@@ -338,7 +343,18 @@ struct SSDD get_mode(word w)
             }
             else 
             {
-                printf(" #%o ", res.val);
+            	if (res.a == ostat) 
+            	{
+				printf("@#%o", ostat);
+				}
+				else if (res.a == odata) 
+				{
+				printf("@#%o", odata);
+				}
+				else
+				{
+                printf(" @#%06o ", res.val);
+            	}
             }
             reg[nn]+=2;
             break;
@@ -361,15 +377,23 @@ struct SSDD get_mode(word w)
             	res.val = w_read(res.a);
             }
 			printf("-(R%d) ", nn);
+			assert(res.a < 56*1024 && res.a > 7);
             break;
         case 5:
-        	reg[nn]-=2;
-        	res.a = w_read(reg[nn]);
-            if (b)
-                res.val = b_read(res.a);
-            else
-                res.val = w_read(res.a);
-            printf("@-(R%d) ", nn);
+				reg[nn] -= 2;
+				res.a = w_read(reg[nn]);
+				if (b) {
+					res.val = b_read(res.a);
+				} else {
+					res.val = w_read(res.a);
+				}
+				//~ if (n != 7) {
+						printf("@-(R%d) ", nn);
+				//~ }
+				//~ else {
+					//~ printf(" #%o ", result.val);
+				//~ }
+				break;
         //case 6:
 
 
@@ -386,6 +410,7 @@ void run()
 {
 	printf("\nRunning \n");
     pc = 01000;
+    w_write (ostat, 0xFF);
 
     while(1) {
         word w = w_read(pc) & 0xffff;
@@ -420,7 +445,6 @@ void run()
         printf("\n");
     }
 }
-
 void NZVC(word x)
 {
 	Z = (x == 0); //флаг нуля 

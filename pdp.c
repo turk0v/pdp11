@@ -21,7 +21,7 @@ word reg[8];
 int debug_level = DEBUG;
 char **global_argv;
 
-#define sp reg[6]
+#define sp reg[6] // адрес с вершинной стека
 #define pc reg[7]
 //x3
 #define ostat 0177564
@@ -105,8 +105,8 @@ struct SSDD {
 
 //запись/чтение из памяти 
 void b_write(adr a, byte val) {
- //   if (a == odata)
- //       printf(" %c", val);
+   if (a == odata)
+       printf(" %c", val);
     if (a < 8)
         reg[a] = ((val>>7) ? (val | 0xFF00) : val);
     else
@@ -232,18 +232,18 @@ void do_jmp()
 {
 	pc = dd.a; //переходит в указанный адрес
 }
-void do_rts()  //смотри 4 презентацию
+void do_rts()  //реализация pop 
 {
 	pc = reg[R6] & 0xFFFF;
 	reg[R6] = w_read(sp) & 0xFFFF;
-	sp = (sp + 2)  & 0xFFFF;
-	printf(" R%d", R6);
+	sp = (sp + 2)  & 0xFFFF; 
+	printf(" R%d", R6); // r6 - номер регистра в который засунили 
 }
 
-void do_jsr() { //смотри 4 презентацию 
+void do_jsr() { 
 
-	sp = (sp - 2) & 0xFFFF; //push
-	w_write(sp, reg[rr] & 0xFFFF);
+	sp = (sp - 2) & 0xFFFF; 
+	w_write(sp, reg[rr] & 0xFFFF); //push
 	reg[rr] = pc & 0xFFFF;
 	pc = dd.a & 0xFFFF;
 	//printf("pc, %06o",pc);
